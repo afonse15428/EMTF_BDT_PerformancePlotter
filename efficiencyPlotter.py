@@ -62,13 +62,15 @@ if __name__ == "__main__":
     branch_BDTG_AWB_Sq = fileHelper.getBranch(target_file,"f_logPtTarg_invPtWgt/TestTree/BDTG_AWB_Sq", options.verbose)
     branch_GEN_eta = fileHelper.getBranch(target_file,"f_logPtTarg_invPtWgt/TestTree/GEN_eta", options.verbose)
     branch_TRK_hit_ids = fileHelper.getBranch(target_file,"f_logPtTarg_invPtWgt/TestTree/TRK_hit_ids", options.verbose)
+    branch_EMTF_pt = fileHelper.getBranch(target_file,"f_logPtTarg_invPtWgt/TestTree/EMTF_pt", options.verbose)
 
     # Group branches into dictionary for reference
     unbinned_EVT_data = {}
     unbinned_EVT_data['GEN_pt'] = branch_GEN_pt.arrays()['GEN_pt']
-    unbinned_EVT_data['BDT_pt'] = 2**branch_BDTG_AWB_Sq.arrays()['BDTG_AWB_Sq']
+    unbinned_EVT_data['BDT_pt'] = 2**branch_BDTG_AWB_Sq.arrays()['BDTG_AWB_Sq']#helper.scaleBDTPtRun2(2**branch_BDTG_AWB_Sq.arrays()['BDTG_AWB_Sq'])
     unbinned_EVT_data['GEN_eta'] = branch_GEN_eta.arrays()['GEN_eta']
     unbinned_EVT_data['TRK_hit_ids'] = branch_TRK_hit_ids.arrays()['TRK_hit_ids']
+    unbinned_EVT_data['EMTF_pt'] = branch_EMTF_pt.arrays()['EMTF_pt']
 
     # Open a matplotlib PDF Pages file
     pp = fileHelper.openPdfPages(args[0], "plots", options.verbose)
@@ -84,48 +86,58 @@ if __name__ == "__main__":
     eta_mins = options.eta_mins
     eta_maxs = options.eta_maxs
     
-
+    trg_hit_cuts = [[15]]#,[30, 45, 75, 135],[60, 90, 105, 150, 165, 195],[120,180,210,225],[240]]
+    trg_hit_cut_names = [">0RPCs", "1RPC", "2RPCs", "3RPCs", "4RPCs"]
     # Go through each PT Cut and Eta Cuts and generate figures to save to pdf
     for pt_cut in pt_cuts:
         for i in range(0, len(eta_mins)):
             if(options.verbose):
                 print("###################   New Cuts   ###################")
+            for i in range(0,len(trg_hit_cuts)):
+                trg_hit_cut = trg_hit_cuts[i]
+                trg_hit_cut_name = trg_hit_cut_names[i]
+                # Apply TRK_hit_ids
+                unbinned_EVT_data_trg_hit_id_pass = helper.applyMaskToEVTData(
+                                                unbinned_EVT_data,
+                                                ["GEN_pt", "BDT_pt", "GEN_eta", "TRK_hit_ids", "EMTF_pt"],
+                                                (unbinned_EVT_data["TRK_hit_ids"] > 15),
+                                                "TRG HIT ID: " + str(trg_hit_cut) + " == TRK_hit_ids", options.verbose)
+                # Apply ETA Mask
+                unbinned_EVT_data_eta_masked = helper.applyMaskToEVTData(
+                                                unbinned_EVT_data_trg_hit_id_pass,
+                                                ["GEN_pt", "BDT_pt", "GEN_eta", "TRK_hit_ids", "EMTF_pt"], 
+                                                ((eta_mins[i] < abs(unbinned_EVT_data_trg_hit_id_pass["GEN_eta"])) & (eta_maxs[i] > abs(unbinned_EVT_data_trg_hit_id_pass["GEN_eta"]))),
+                                                "ETA CUT: " + str(eta_mins[i]) + " < eta < " + str(eta_maxs[i]), options.verbose)
 
-            # Apply ETA Mask
-            unbinned_EVT_data_eta_masked = helper.applyMaskToEVTData(
-                                            unbinned_EVT_data,
-                                            ["GEN_pt", "BDT_pt", "GEN_eta", "TRK_hit_ids"], 
-                                            ((eta_mins[i] < abs(unbinned_EVT_data["GEN_eta"])) & (eta_maxs[i] > abs(unbinned_EVT_data["GEN_eta"]))),
-                                            "ETA CUT: " + str(eta_mins[i]) + " < eta < " + str(eta_maxs[i]), options.verbose)
-            
-            # Apply PT Cut mask
-            unbinned_EVT_data_eta_masked_pt_pass = helper.applyMaskToEVTData(
-                                            unbinned_EVT_data_eta_masked,
-                                            ["GEN_pt", "GEN_eta"],
-                                            (pt_cut < unbinned_EVT_data_eta_masked["BDT_pt"]),
-                                            "PT CUT: " + str(pt_cut) + " < pT", options.verbose)
+                # Apply BDT PT Cut mask
+                unbinned_EVT_data_eta_masked_pt_pass = helper.applyMaskToEVTData(
+                                                unbinned_EVT_data_eta_masked,
+                                                ["GEN_pt", "GEN_eta"],
+                                                (pt_cut < unbinned_EVT_data_eta_masked["BDT_pt"]),
+                                                "BDT PT CUT: " + str(pt_cut) + " < pT", options.verbose)
 
-            # Generate efficiency vs eta plot
-            eta_fig = efficiencyPlotter.makeEfficiencyVsEtaPlot(unbinned_EVT_data_eta_masked_pt_pass["GEN_eta"], unbinned_EVT_data_eta_masked["GEN_eta"],
-                                               "EMTF BDT Efficiency", "mode: " + str(options.emtf_mode)
-                                              + "\n" + str(eta_mins[i]) + " < $\eta$ < " + str(eta_maxs[i])
-                                              + "\n $p_T$ > " + str(pt_cut) + "GeV"
-                                              + "\n" + "$N_{events}$: "+str(len(unbinned_EVT_data_eta_masked["GEN_eta"])), pt_cut, options.verbose)
+                # Generate efficiency vs eta plot
+                eta_fig = efficiencyPlotter.makeEfficiencyVsEtaPlot(unbinned_EVT_data_eta_masked_pt_pass["GEN_eta"], unbinned_EVT_data_eta_masked["GEN_eta"],
+                                                   "EMTF BDT Efficiency", "mode: " + str(options.emtf_mode)
+                                                  + "\n" + str(eta_mins[i]) + " < $\eta$ < " + str(eta_maxs[i])
+                                                  + "\n $p_T$ > " + str(pt_cut) + "GeV"
+                                                  + "\n" + "$N_{events}$: "+str(len(unbinned_EVT_data_eta_masked["GEN_eta"]))
+                                                  + "\n" + "TRK:"+trg_hit_cut_name, pt_cut, options.verbose)
 
-            # Generate efficiency vs pt plot
-            pt_fig = efficiencyPlotter.makeEfficiencyVsPtPlot(unbinned_EVT_data_eta_masked_pt_pass["GEN_pt"], unbinned_EVT_data_eta_masked["GEN_pt"],
-                                              "EMTF BDT Efficiency", "mode: " + str(options.emtf_mode)
-                                              + "\n" + str(eta_mins[i]) + " < $\eta$ < " + str(eta_maxs[i])
-                                              + "\n $p_T$ > " + str(pt_cut) + "GeV"
-                                              + "\n" + "$N_{events}$: "+str(len(unbinned_EVT_data_eta_masked["GEN_pt"])), pt_cut, options.verbose)
-            # Increase size to square 6in x 6in on PDF
-            pt_fig.set_size_inches(6, 6)
-            eta_fig.set_size_inches(6,6)
-            plt.close(pt_fig)
-            plt.close(eta_fig)
-            # Save figures to PDF
-            pp.savefig(pt_fig)
-            pp.savefig(eta_fig)
+                # Generate efficiency vs pt plot
+                pt_fig = efficiencyPlotter.makeEfficiencyVsPtPlot(unbinned_EVT_data_eta_masked_pt_pass["GEN_pt"], unbinned_EVT_data_eta_masked["GEN_pt"],
+                                                  "EMTF BDT Efficiency", "mode: " + str(options.emtf_mode)
+                                                  + "\n" + str(eta_mins[i]) + " < $\eta$ < " + str(eta_maxs[i])
+                                                  + "\n $p_T$ > " + str(pt_cut) + "GeV"
+                                                  + "\n" + "$N_{events}$: "+str(len(unbinned_EVT_data_eta_masked["GEN_pt"]))
+                                                  + "\n" + "TRK:"+trg_hit_cut_name, pt_cut, options.verbose)
+
+                # Increase size to square 6in x 6in on PDF
+                pt_fig.set_size_inches(6, 6)
+                eta_fig.set_size_inches(6,6)
+                # Save figures to PDF
+                pp.savefig(pt_fig)
+                pp.savefig(eta_fig)
     if(options.verbose):
         print("\nClosing PDF\n")
     #Close PDF
@@ -267,6 +279,106 @@ def makeEfficiencyVsPtPlot(num_unbinned, den_unbinned, title, textStr, xvline, v
     ax[1].errorbar([den_bins[i]+(den_bins[i+1]-den_bins[i])/2 for i in range(0, len(den_bins)-1)],
                     efficiency_binned, yerr=efficiency_binned_err, xerr=[(bins[i+1] - bins[i])/2 for i in range(0, len(bins)-1)],
                     linestyle="", marker=".", markersize=3, elinewidth = .5)
+    # Setting Labels, vertical lines, horizontal line at 90% efficiency, and plot configs
+    ax[1].set_ylabel("Efficiency")
+    ax[1].set_xlabel("$p_T$(GeV)")
+    ax[1].axhline(linewidth=.1)
+    ax[1].axvline(linewidth=.1)
+    ax[1].grid(color='lightgray', linestyle='--', linewidth=.25)
+    ax[1].axhline(y=0.9, color='r', linewidth=.5, linestyle='--')
+    ax[1].axvline(x=xvline, color='r', linewidth=.5, linestyle='--')
+    # Adding a text box to bottom right
+    props = dict(boxstyle='square', facecolor='white', alpha=1.0)
+    ax[1].text(0.95, 0.05, textStr, transform=ax[1].transAxes, fontsize=10, verticalalignment='bottom', horizontalalignment='right', bbox=props)
+    # Setting y-axis limit but not x-axis limit to see high pT behavior
+    ax[1].set_ylim([0,1.2])
+    # Setting all font sizes to be small (Less distracting)
+    for item in ([ax[1].title, ax[1].xaxis.label, ax[1].yaxis.label] + ax[1].get_xticklabels() + ax[1].get_yticklabels()):
+        item.set_fontsize(8)
+
+
+    if(verbose):
+        print("Finished Creating Pt Figures\n")
+    # Returning the final figure with both plots drawn
+    return fig2
+
+def makeEfficiencyVsPtComparisonPlot(name1, num_unbinned1, den_unbinned1, name2, num_unbinned2, den_unbinned2, title, textStr, xvline, verbose=False):
+    """
+       makeEfficiencyVsPtPlot creates a binned histogram plot of the ratio of num_unbinned and den_unbinned vs pT
+       and calls getEfficiciencyHist.
+
+       NOTE: num_unbinned should be a strict subset of den_unbinned.
+
+       INPUT:
+             num_unbinned - TYPE: numpy array-like
+             den_unbinned - TYPE: numpy array-like
+             title - TYPE: String (Plot Title)
+             textStr - TYPE: String (Text Box info)
+             xvline - TYPE: Float (x value of vertical line)
+       OUTPUT:
+             fig - TYPE: MatPlotLib PyPlot Figure containing efficiency vs pt plot
+    """
+
+    if(verbose):
+        print("\nInitializing Figures and Binning Pt Histograms")
+
+    # Initializing bins and binning histograms from unbinned entries
+    # Bins start small and get larger toward larger pT
+    bins = [0,1,2,3,4,5,6,7,8,9,10,12,14,16,18,
+           20,22,24,26,28,30,32,34,36,38,40,42,
+           44,46,48,50,60,70,80,90,100,150,200,
+           250,300,400,500,600,700,800,900,1000]
+    den_binned1, den_bins1 = np.histogram(den_unbinned1, bins, (0,1000))
+    num_binned1, num_bins1 = np.histogram(num_unbinned1, bins, (0,1000))
+    den_binned2, den_bins2 = np.histogram(den_unbinned2, bins, (0,1000))
+    num_binned2, num_bins2 = np.histogram(num_unbinned2, bins, (0,1000))
+
+    if(verbose):
+        print("Generating Efficiency vs Pt Plot")
+
+    # Calling getEfficiciencyHist to get efficiency with Clopper-Pearson error
+    efficiency_binned1, efficiency_binned_err1 = getEfficiciencyHist(num_binned1, den_binned1)
+    efficiency_binned2, efficiency_binned_err2 = getEfficiciencyHist(num_binned2, den_binned2)
+
+
+    # Generating a plot with 2 subplots (One to show turn on region, one to show high pT behavior)
+    fig2, ax = plt.subplots(2)
+    fig2.suptitle(title)
+
+
+    # Plotting on first set of axes
+    ax[0].errorbar([den_bins1[i]+(den_bins1[i+1]-den_bins1[i])/2 for i in range(0, len(den_bins1)-1)],
+                    efficiency_binned1, yerr=efficiency_binned_err1, xerr=[(bins[i+1] - bins[i])/2 for i in range(0, len(bins)-1)],
+                    linestyle="",color="b", marker=".", markersize=3, elinewidth = .5)
+    ax[0].errorbar([den_bins2[i]+(den_bins2[i+1]-den_bins2[i])/2 for i in range(0, len(den_bins2)-1)],
+                    efficiency_binned2, yerr=efficiency_binned_err2, xerr=[(bins[i+1] - bins[i])/2 for i in range(0, len(bins)-1)],
+                    linestyle="",color="r", marker=".", markersize=3, elinewidth = .5)
+    # Setting Labels, vertical lines, horizontal line at 90% efficiency, and plot configs
+    ax[0].set_ylabel("Efficiency")
+    ax[0].set_xlabel("$p_T$(GeV)")
+    ax[0].axhline(linewidth=.1)
+    ax[0].axvline(linewidth=.1)
+    ax[0].grid(color='lightgray', linestyle='--', linewidth=.25)
+    ax[0].axhline(y=0.9, color='r', linewidth=.5, linestyle='--')
+    ax[0].axvline(x=xvline, color='r', linewidth=.5, linestyle='--')
+    # Adding a text box to bottom right
+    props = dict(boxstyle='square', facecolor='white', alpha=1.0)
+    ax[0].text(0.95, 0.05, textStr, transform=ax[0].transAxes, fontsize=10, verticalalignment='bottom', horizontalalignment='right', bbox=props)
+    # Setting axes limits to view turn on region
+    ax[0].set_ylim([0,1.2])
+    ax[0].set_xlim([0,max(2*xvline,50)])
+    # Setting all font sizes to be small (Less distracting)
+    for item in ([ax[0].title, ax[0].xaxis.label, ax[0].yaxis.label] + ax[0].get_xticklabels() + ax[0].get_yticklabels()):
+        item.set_fontsize(8)
+
+
+    # Plotting on second set of axes
+    ax[1].errorbar([den_bins1[i]+(den_bins1[i+1]-den_bins1[i])/2 for i in range(0, len(den_bins1)-1)],
+                    efficiency_binned1, yerr=efficiency_binned_err1, xerr=[(bins[i+1] - bins[i])/2 for i in range(0, len(bins)-1)],
+                    linestyle="",color="b", marker=".", markersize=3, elinewidth = .5)
+    ax[1].errorbar([den_bins2[i]+(den_bins2[i+1]-den_bins2[i])/2 for i in range(0, len(den_bins2)-1)],
+                    efficiency_binned2, yerr=efficiency_binned_err2, xerr=[(bins[i+1] - bins[i])/2 for i in range(0, len(bins)-1)],
+                    linestyle="",color="r", marker=".", markersize=3, elinewidth = .5)
     # Setting Labels, vertical lines, horizontal line at 90% efficiency, and plot configs
     ax[1].set_ylabel("Efficiency")
     ax[1].set_xlabel("$p_T$(GeV)")
