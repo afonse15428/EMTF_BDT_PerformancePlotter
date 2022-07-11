@@ -2,8 +2,6 @@
 
 import helpers.fileHelper as fileHelper
 
-import hist
-from hist import Hist
 import mplhep as hep
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
@@ -13,6 +11,8 @@ import awkward
 import sys
 import os
 import helpers.helper as helper
+import helpers.AndrewsHelper as Andrew_Helper
+from scipy import optimize
 
 if __name__ == "__main__":
     # This code will run if called from command line directly
@@ -66,18 +66,18 @@ if __name__ == "__main__":
         print("\nCollecting GEN_pt, GEN_eta, BDTG_AWB_Sq, and TRK_hit_ids\n")
 
     # Collect branch using fileHelper
-    branch_GEN_pt = fileHelper.getBranch(target_file,"f_logPtTarg_invPtWgt/TestTree/GEN_pt", options.verbose)
-    branch_EMTF_pt = fileHelper.getBranch(target_file,"f_logPtTarg_invPtWgt/TestTree/EMTF_pt", options.verbose)
-    branch_BDTG_AWB_Sq = fileHelper.getBranch(target_file,"f_logPtTarg_invPtWgt/TestTree/BDTG_AWB_Sq", options.verbose)
-    branch_GEN_eta = fileHelper.getBranch(target_file,"f_logPtTarg_invPtWgt/TestTree/GEN_eta", options.verbose)
-    branch_GEN_phi = fileHelper.getBranch(target_file,"f_logPtTarg_invPtWgt/TestTree/GEN_phi", options.verbose)
-    branch_TRK_hit_ids = fileHelper.getBranch(target_file,"f_logPtTarg_invPtWgt/TestTree/TRK_hit_ids", options.verbose)
+    branch_GEN_pt = fileHelper.getBranch(target_file,"f_logPtTarg_invlog2PtWgt/TestTree/GEN_pt", options.verbose)
+    branch_EMTF_pt = fileHelper.getBranch(target_file,"f_logPtTarg_invlog2PtWgt/TestTree/EMTF_pt", options.verbose)
+    branch_BDTG_AWB_Sq = fileHelper.getBranch(target_file,"f_logPtTarg_invlog2PtWgt/TestTree/BDTG_AWB_Sq", options.verbose)
+    branch_GEN_eta = fileHelper.getBranch(target_file,"f_logPtTarg_invlog2PtWgt/TestTree/GEN_eta", options.verbose)
+    branch_GEN_phi = fileHelper.getBranch(target_file,"f_logPtTarg_invlog2PtWgt/TestTree/GEN_phi", options.verbose)
+    branch_TRK_hit_ids = fileHelper.getBranch(target_file,"f_logPtTarg_invlog2PtWgt/TestTree/TRK_hit_ids", options.verbose)
 
     # Group branches into dictionary for reference
     unbinned_EVT_data = {}
     unbinned_EVT_data['GEN_pt'] = branch_GEN_pt.arrays()['GEN_pt']
-    unbinned_EVT_data['EMTF_pt'] = branch_EMTF_pt.arrays()['EMTF_pt']
-    unbinned_EVT_data['BDT_pt'] = helper.scaleBDTPtRun2(2**branch_BDTG_AWB_Sq.arrays()['BDTG_AWB_Sq'])
+    unbinned_EVT_data['EMTF_pt'] = helper.unscaleBDTPtRun2(branch_EMTF_pt.arrays()['EMTF_pt'])
+    unbinned_EVT_data['BDT_pt'] = 2**branch_BDTG_AWB_Sq.arrays()['BDTG_AWB_Sq']
     unbinned_EVT_data['GEN_eta'] = branch_GEN_eta.arrays()['GEN_eta']
     unbinned_EVT_data['GEN_phi'] = branch_GEN_phi.arrays()['GEN_phi']
     unbinned_EVT_data['TRK_hit_ids'] = branch_TRK_hit_ids.arrays()['TRK_hit_ids']
@@ -95,7 +95,10 @@ if __name__ == "__main__":
     pt_cuts = options.pt_cuts
     eta_mins = options.eta_mins
     eta_maxs = options.eta_maxs
-    
+
+    pt_val = [] #[1, 2, 3, 4, 5, 6, 7]
+    pt_50 = [] #[0.754, 1.644, 2.889, 4.055, 5.125, 6.18, 7.251]
+    c = [] #[0.079, 0.232, 0.181, 0.163, 0.162, 0.167, 0.175]
 
     # Go through each PT Cut and Eta Cuts and generate figures to save to pdf
     for pt_cut in pt_cuts:
@@ -144,36 +147,49 @@ if __name__ == "__main__":
                                             "Plataue EMTF PT CUT: " + str(pt_cut) + " < pT", options.verbose)
 
             # Generate efficiency vs eta plot
-            eta_fig = efficiencyPlotter.makeEfficiencyVsEtaStackedPlot(unbinned_EVT_data_eta_masked_plataue_pt_pass["GEN_eta"], unbinned_EVT_data_eta_masked_plataue["GEN_eta"],
-                                               unbinned_EVT_data_eta_masked_plataue_emtf_pt_pass["GEN_eta"], unbinned_EVT_data_eta_masked_plataue["GEN_eta"],
-                                               "EMTF BDT Efficiency \n Emulation in "  + str(options.cmssw_rel), "Retrained LUT", "Run2 LUT",
-                                              "mode: " + str(options.emtf_mode)
-                                              + "\n" + str(eta_mins[i]) + " < $\eta$ < " + str(eta_maxs[i])
-                                              + "\n $p_T$ > " + str(pt_cut) + "GeV"
-                                              + "\n" + "$N_{events}$: "+str(len(unbinned_EVT_data_eta_masked_plataue["GEN_eta"])), pt_cut, options.verbose)
+          # eta_fig = efficiencyPlotter.makeEfficiencyVsEtaStackedPlot(unbinned_EVT_data_eta_masked_plataue_pt_pass["GEN_eta"], unbinned_EVT_data_eta_masked_plataue["GEN_eta"],
+          #                                    unbinned_EVT_data_eta_masked_plataue_emtf_pt_pass["GEN_eta"], unbinned_EVT_data_eta_masked_plataue["GEN_eta"],
+          #                                    "EMTF BDT Efficiency \n Emulation in "  + str(options.cmssw_rel), "Retrained LUT", "Run2 LUT",
+          #                                    "mode: " + str(options.emtf_mode)
+          #                                   + "\n" + str(eta_mins[i]) + " < $\eta$ < " + str(eta_maxs[i])
+          #                                   + "\n $p_T$ > " + str(pt_cut) + "GeV"
+          #                                   + "\n" + "$N_{events}$: "+str(len(unbinned_EVT_data_eta_masked_plataue["GEN_eta"])), pt_cut, options.verbose)
+
             # Generate efficiency vs phi plot
-            phi_fig = efficiencyPlotter.makeEfficiencyVsPhiPlot(unbinned_EVT_data_eta_masked_plataue_pt_pass["GEN_phi"], unbinned_EVT_data_eta_masked_plataue["GEN_phi"],
-                                               "EMTF BDT Efficiency \n $\epsilon$ vs $\phi$ \n " + str(options.cmssw_rel), "mode: " + str(options.emtf_mode)
-                                              + "\n" + str(eta_mins[i]) + " < $\eta$ < " + str(eta_maxs[i])
-                                              + "\n $p_T$ > " + str(pt_cut) + "GeV"
-                                              + "\n" + "$N_{events}$: "+str(len(unbinned_EVT_data_eta_masked_plataue["GEN_phi"])), pt_cut, options.verbose)
+          # phi_fig = efficiencyPlotter.makeEfficiencyVsPhiPlot(unbinned_EVT_data_eta_masked_plataue_pt_pass["GEN_phi"], unbinned_EVT_data_eta_masked_plataue["GEN_phi"],
+          #                                     "EMTF BDT Efficiency \n $\epsilon$ vs $\phi$ \n " + str(options.cmssw_rel), "mode: " + str(options.emtf_mode)
+          #                                    + "\n" + str(eta_mins[i]) + " < $\eta$ < " + str(eta_maxs[i])
+          #                                    + "\n $p_T$ > " + str(pt_cut) + "GeV"
+          #                                    + "\n" + "$N_{events}$: "+str(len(unbinned_EVT_data_eta_masked_plataue["GEN_phi"])), pt_cut, options.verbose)
 
             # Generate efficiency vs pt plot
-            pt_fig = efficiencyPlotter.makeEfficiencyVsPtStackedPlot(unbinned_EVT_data_eta_masked_pt_pass["GEN_pt"], unbinned_EVT_data_eta_masked["GEN_pt"],
+            pt_fig, pt_50_elem, c_elem = efficiencyPlotter.makeEfficiencyVsPtStackedPlot(unbinned_EVT_data_eta_masked_pt_pass["GEN_pt"], unbinned_EVT_data_eta_masked["GEN_pt"],
                                               unbinned_EVT_data_eta_masked_emtf_pt_pass["GEN_pt"], unbinned_EVT_data_eta_masked["GEN_pt"],
                                               "EMTF BDT Efficiency \n Emulation in " + str(options.cmssw_rel), "Retrained LUT", "Run2 LUT",
                                               "mode: " + str(options.emtf_mode)
                                               + "\n" + str(eta_mins[i]) + " < $\eta$ < " + str(eta_maxs[i])
                                               + "\n $p_T$ > " + str(pt_cut) + "GeV"
                                               + "\n" + "$N_{events}$: "+str(len(unbinned_EVT_data_eta_masked["GEN_pt"])), pt_cut, options.verbose)
+            
+            pt_50.append(pt_50_elem)
+            c.append(c_elem)
+
             # Increase size to square 6in x 6in on PDF
             pt_fig.set_size_inches(6, 6)
-            phi_fig.set_size_inches(6, 6)
-            eta_fig.set_size_inches(6,6)
+           # phi_fig.set_size_inches(6, 6)
+           # eta_fig.set_size_inches(6,6)
             # Save figures to PDF
             pp.savefig(pt_fig)
-            pp.savefig(eta_fig)
-            pp.savefig(phi_fig)
+           # pp.savefig(eta_fig)
+           # pp.savefig(phi_fig)
+
+    # Generate fit parameters vs pt plot
+    fitParam_fig = efficiencyPlotter.makeFitParametersVsPtPlot(pt_cuts, pt_50, c)
+
+    fitParam_fig.set_size_inches(6, 6)
+    pp.savefig(fitParam_fig)
+
+
     if(options.verbose):
         print("\nClosing PDF\n")
     #Close PDF
@@ -506,13 +522,27 @@ def makeEfficiencyVsPtStackedPlot(num_unbinned, den_unbinned, num2_unbinned, den
     fig2, ax = plt.subplots(2)
     fig2.suptitle(title)
 
+    # Ploting Effiency Function Fit from Andrew's Helper
+    eff_func_fit = []
+    pt_arr = []
+    popt, pcov = optimize.curve_fit(Andrew_Helper.effFunc_v, xdata=[den_bins[i]+(den_bins[i+1]-den_bins[i])/2 for i in range(0, len(den_bins)-1)], ydata=efficiency_binned, p0=(xvline, .2), method="lm")
+    print(popt)
+    for i in range(0, 5000):
+        pt_val = i/5 + 0.5 #bins[i] + (bins[i + 1] - bins[i])/2
+        pt_arr.append(pt_val)
+        eff_func_fit.append(Andrew_Helper.effFunc(pt_val,popt[0],popt[1]))
+
     # Plotting on first set of axes
     ax[0].errorbar([den_bins[i]+(den_bins[i+1]-den_bins[i])/2 for i in range(0, len(den_bins)-1)],
                     efficiency_binned, yerr=efficiency_binned_err, xerr=[(bins[i+1] - bins[i])/2 for i in range(0, len(bins)-1)],
                     linestyle="", marker=".", markersize=3, elinewidth = .5, label=label1, color="royalblue")
-    ax[0].errorbar([den2_bins[i]+(den2_bins[i+1]-den2_bins[i])/2 for i in range(0, len(den2_bins)-1)],
-                    efficiency2_binned, yerr=efficiency2_binned_err, xerr=[(bins[i+1] - bins[i])/2 for i in range(0, len(bins)-1)],
-                    linestyle="", marker=".", markersize=3, elinewidth = .5, label=label2, color="lightcoral")
+    ax[0].plot(pt_arr,
+                    eff_func_fit, #yerr=0, xerr=[(bins[i+1] - bins[i])/2 for i in range(0, len(bins)-1)],
+                    #linestyle="", marker="v", markersize=3, elinewidth = .5,
+                     label=label1+" fit", color="black")
+    # ax[0].errorbar([den2_bins[i]+(den2_bins[i+1]-den2_bins[i])/2 for i in range(0, len(den2_bins)-1)],
+    #                efficiency2_binned, yerr=efficiency2_binned_err, xerr=[(bins[i+1] - bins[i])/2 for i in range(0, len(bins)-1)],
+    #                linestyle="", marker=".", markersize=3, elinewidth = .5, label=label2, color="lightcoral")
 
     # Setting Labels, vertical lines, horizontal line at 90% efficiency, and plot configs
     ax[0].set_ylabel("Efficiency")
@@ -524,7 +554,7 @@ def makeEfficiencyVsPtStackedPlot(num_unbinned, den_unbinned, num2_unbinned, den
     ax[0].axvline(x=xvline, color='r', linewidth=.5, linestyle='--')
     # Adding a text box to bottom right
     props = dict(boxstyle='square', facecolor='white', alpha=1.0)
-    ax[0].text(0.95, 0.05, textStr, transform=ax[0].transAxes, fontsize=10, verticalalignment='bottom', horizontalalignment='right', bbox=props)
+    ax[0].text(0.95, 0.05, textStr + " \n$p_T^{50} = " + str(round(popt[0], 3)) + "$" + " \n$c = " + str(round(popt[1], 3)) + "$", transform=ax[0].transAxes, fontsize=10, verticalalignment='bottom', horizontalalignment='right', bbox=props)
     # Setting axes limits to view turn on region
     ax[0].set_ylim([0,1.2])
     ax[0].set_xlim([0,max(2*xvline,50)])
@@ -536,9 +566,12 @@ def makeEfficiencyVsPtStackedPlot(num_unbinned, den_unbinned, num2_unbinned, den
     ax[1].errorbar([den_bins[i]+(den_bins[i+1]-den_bins[i])/2 for i in range(0, len(den_bins)-1)],
                     efficiency_binned, yerr=efficiency_binned_err, xerr=[(bins[i+1] - bins[i])/2 for i in range(0, len(bins)-1)],
                     linestyle="", marker=".", markersize=3, elinewidth = .5, label=label1, color="royalblue")
-    ax[1].errorbar([den2_bins[i]+(den2_bins[i+1]-den2_bins[i])/2 for i in range(0, len(den2_bins)-1)],
-                    efficiency2_binned, yerr=efficiency2_binned_err, xerr=[(bins[i+1] - bins[i])/2 for i in range(0, len(bins)-1)],
-                    linestyle="", marker=".", markersize=3, elinewidth = .5, label=label2, color="lightcoral")
+    ax[1].plot(pt_arr,
+                    eff_func_fit,
+                    label=label1+" fit", color="black")
+    # ax[1].errorbar([den2_bins[i]+(den2_bins[i+1]-den2_bins[i])/2 for i in range(0, len(den2_bins)-1)],
+    #                efficiency2_binned, yerr=efficiency2_binned_err, xerr=[(bins[i+1] - bins[i])/2 for i in range(0, len(bins)-1)],
+    #                linestyle="", marker=".", markersize=3, elinewidth = .5, label=label2, color="lightcoral")
     # Setting Labels, vertical lines, horizontal line at 90% efficiency, and plot configs
     ax[1].set_ylabel("Efficiency")
     ax[1].set_xlabel("$p_T$(GeV)")
@@ -560,7 +593,7 @@ def makeEfficiencyVsPtStackedPlot(num_unbinned, den_unbinned, num2_unbinned, den
     if(verbose):
         print("Finished Creating Pt Figures\n")
     # Returning the final figure with both plots drawn
-    return fig2
+    return fig2, popt[0], popt[1]
 
 
 def makeEfficiencyVsEtaStackedPlot(num_unbinned, den_unbinned,num2_unbinned, den2_unbinned, title,label1, label2, textStr, xvline, verbose=False):
@@ -630,4 +663,39 @@ def makeEfficiencyVsEtaStackedPlot(num_unbinned, den_unbinned,num2_unbinned, den
         print("Finished Creating Eta Figures\n")
     # Returning the final figure with both plots drawn
     return fig2
+
+
+
+def makeFitParametersVsPtPlot(pt_val, pt_50, c):
+    
+    bias = np.divide(pt_50, pt_val) - 1
+
+
+    fig2, ax = plt.subplots(2)
+    fig2.suptitle("Fit Parameters")
+    ax[0].errorbar(pt_val, bias, xerr = 0, yerr = 0, linestyle="", marker=".", markersize=3, elinewidth = .5, label= "Pt_50/Pt_Cut", color="royalblue")
+    ax[0].set_xlabel("Pt")
+    ax[0].set_ylabel("Bias")
+    ax[0].grid(color='lightgray', linestyle='--', linewidth=.25)
+    ax[0].legend()
+    for item in ([ax[0].title, ax[0].xaxis.label, ax[0].yaxis.label] + ax[0].get_xticklabels() + ax[0].get_yticklabels()):
+        item.set_fontsize(8)
+        
+    ax[1].errorbar(pt_val, c, xerr = 0, yerr = 0, linestyle="", marker=".", markersize=3, elinewidth = .5, label= "c", color="royalblue")
+    ax[1].set_xlabel("Pt")
+    ax[1].set_ylabel("c")
+    ax[1].grid(color='lightgray', linestyle='--', linewidth=.25)
+    ax[1].legend()
+    for item in ([ax[1].title, ax[1].xaxis.label, ax[1].yaxis.label] + ax[1].get_xticklabels() + ax[1].get_yticklabels()):
+        item.set_fontsize(8)  
+
+    return fig2
+
+
+
+
+
+
+
+
 
