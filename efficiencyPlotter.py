@@ -96,9 +96,12 @@ if __name__ == "__main__":
     eta_mins = options.eta_mins
     eta_maxs = options.eta_maxs
 
-    pt_val = [] #[1, 2, 3, 4, 5, 6, 7]
-    pt_50 = [] #[0.754, 1.644, 2.889, 4.055, 5.125, 6.18, 7.251]
-    c = [] #[0.079, 0.232, 0.181, 0.163, 0.162, 0.167, 0.175]
+    pt_val = []
+    pt_50 = []
+    pt_90s = []
+    b = []
+    c = []
+    d = []
 
     # Go through each PT Cut and Eta Cuts and generate figures to save to pdf
     for pt_cut in pt_cuts:
@@ -163,7 +166,7 @@ if __name__ == "__main__":
           #                                    + "\n" + "$N_{events}$: "+str(len(unbinned_EVT_data_eta_masked_plataue["GEN_phi"])), pt_cut, options.verbose)
 
             # Generate efficiency vs pt plot
-            pt_fig, pt_50_elem, c_elem = efficiencyPlotter.makeEfficiencyVsPtStackedPlot(unbinned_EVT_data_eta_masked_pt_pass["GEN_pt"], unbinned_EVT_data_eta_masked["GEN_pt"],
+            pt_fig, fitParam, pt_90 = efficiencyPlotter.makeEfficiencyVsPtStackedPlot(unbinned_EVT_data_eta_masked_pt_pass["GEN_pt"], unbinned_EVT_data_eta_masked["GEN_pt"],
                                               unbinned_EVT_data_eta_masked_emtf_pt_pass["GEN_pt"], unbinned_EVT_data_eta_masked["GEN_pt"],
                                               "EMTF BDT Efficiency \n Emulation in " + str(options.cmssw_rel), "Retrained LUT", "Run2 LUT",
                                               "mode: " + str(options.emtf_mode)
@@ -171,9 +174,11 @@ if __name__ == "__main__":
                                               + "\n $p_T$ > " + str(pt_cut) + "GeV"
                                               + "\n" + "$N_{events}$: "+str(len(unbinned_EVT_data_eta_masked["GEN_pt"])), pt_cut, options.verbose)
             
-            pt_50.append(pt_50_elem)
-            c.append(c_elem)
-
+            pt_50.append(fitParam[0])
+            pt_90s.append(pt_90)
+            b.append(fitParam[1])
+            c.append(fitParam[2])
+            d.append(fitParam[3])
             # Increase size to square 6in x 6in on PDF
             pt_fig.set_size_inches(6, 6)
            # phi_fig.set_size_inches(6, 6)
@@ -183,12 +188,16 @@ if __name__ == "__main__":
            # pp.savefig(eta_fig)
            # pp.savefig(phi_fig)
 
-    # Generate fit parameters vs pt plot
-    fitParam_fig = efficiencyPlotter.makeFitParametersVsPtPlot(pt_cuts, pt_50, c)
+    fitParam_fig = efficiencyPlotter.makeFitParametersVsPtPlot(pt_cuts, pt_50, pt_90s, b, c, d)
+    scaleFactorFit_fig = efficiencyPlotter.makeScaleFactorFitPlot(pt_cuts, pt_90s)
+    res_fig = efficiencyPlotter.makeResolutionPlot(pt_cuts, b, c, d)
 
     fitParam_fig.set_size_inches(6, 6)
+    scaleFactorFit_fig.set_size_inches(6, 6)
+    res_fig.set_size_inches(6, 6)
     pp.savefig(fitParam_fig)
-
+    pp.savefig(scaleFactorFit_fig)
+    pp.savefig(res_fig)
 
     if(options.verbose):
         print("\nClosing PDF\n")
@@ -525,12 +534,14 @@ def makeEfficiencyVsPtStackedPlot(num_unbinned, den_unbinned, num2_unbinned, den
     # Ploting Effiency Function Fit from Andrew's Helper
     eff_func_fit = []
     pt_arr = []
-    popt, pcov = optimize.curve_fit(Andrew_Helper.effFunc_v, xdata=[den_bins[i]+(den_bins[i+1]-den_bins[i])/2 for i in range(0, len(den_bins)-1)], ydata=efficiency_binned, p0=(xvline, .2), method="lm")
+    popt, pcov = optimize.curve_fit(Andrew_Helper.effFuncVariableRes_v, xdata=[den_bins[i]+(den_bins[i+1]-den_bins[i])/2 for i in range(0, len(den_bins)-1)], ydata=efficiency_binned, p0=(xvline, .07, .39, .1), method="lm")
+    pt_90 = Andrew_Helper.findPt_90(popt[0], popt[1], popt[2], popt[3])
     print(popt)
+    print(pt_90)
     for i in range(0, 5000):
         pt_val = i/5 + 0.5 #bins[i] + (bins[i + 1] - bins[i])/2
         pt_arr.append(pt_val)
-        eff_func_fit.append(Andrew_Helper.effFunc(pt_val,popt[0],popt[1]))
+        eff_func_fit.append(Andrew_Helper.effFuncVariableRes(pt_val, popt[0], popt[1], popt[2], popt[3]))
 
     # Plotting on first set of axes
     ax[0].errorbar([den_bins[i]+(den_bins[i+1]-den_bins[i])/2 for i in range(0, len(den_bins)-1)],
@@ -554,7 +565,7 @@ def makeEfficiencyVsPtStackedPlot(num_unbinned, den_unbinned, num2_unbinned, den
     ax[0].axvline(x=xvline, color='r', linewidth=.5, linestyle='--')
     # Adding a text box to bottom right
     props = dict(boxstyle='square', facecolor='white', alpha=1.0)
-    ax[0].text(0.95, 0.05, textStr + " \n$p_T^{50} = " + str(round(popt[0], 3)) + "$" + " \n$c = " + str(round(popt[1], 3)) + "$", transform=ax[0].transAxes, fontsize=10, verticalalignment='bottom', horizontalalignment='right', bbox=props)
+    ax[0].text(0.95, 0.05, textStr + " \n$p_T^{50} = " + str(round(popt[0], 3)) + "$" + " \n$b = " + str(round(popt[1], 3)) + "$" + " \n$c = " + str(round(popt[2], 3)) + "$" + " \n$d = " + str(round(popt[3], 3)) + "$", transform=ax[0].transAxes, fontsize=10, verticalalignment='bottom', horizontalalignment='right', bbox=props)
     # Setting axes limits to view turn on region
     ax[0].set_ylim([0,1.2])
     ax[0].set_xlim([0,max(2*xvline,50)])
@@ -593,7 +604,7 @@ def makeEfficiencyVsPtStackedPlot(num_unbinned, den_unbinned, num2_unbinned, den
     if(verbose):
         print("Finished Creating Pt Figures\n")
     # Returning the final figure with both plots drawn
-    return fig2, popt[0], popt[1]
+    return fig2, popt, pt_90
 
 
 def makeEfficiencyVsEtaStackedPlot(num_unbinned, den_unbinned,num2_unbinned, den2_unbinned, title,label1, label2, textStr, xvline, verbose=False):
@@ -666,12 +677,10 @@ def makeEfficiencyVsEtaStackedPlot(num_unbinned, den_unbinned,num2_unbinned, den
 
 
 
-def makeFitParametersVsPtPlot(pt_val, pt_50, c):
-    
+def makeFitParametersVsPtPlot(pt_val, pt_50, pt_90s, b, c, d):
     bias = np.divide(pt_50, pt_val) - 1
-
-
-    fig2, ax = plt.subplots(2)
+    scaleFactor = np.divide(pt_90s, pt_val)
+    fig2, ax = plt.subplots(5)
     fig2.suptitle("Fit Parameters")
     ax[0].errorbar(pt_val, bias, xerr = 0, yerr = 0, linestyle="", marker=".", markersize=3, elinewidth = .5, label= "Pt_50/Pt_Cut", color="royalblue")
     ax[0].set_xlabel("Pt")
@@ -681,21 +690,75 @@ def makeFitParametersVsPtPlot(pt_val, pt_50, c):
     for item in ([ax[0].title, ax[0].xaxis.label, ax[0].yaxis.label] + ax[0].get_xticklabels() + ax[0].get_yticklabels()):
         item.set_fontsize(8)
         
-    ax[1].errorbar(pt_val, c, xerr = 0, yerr = 0, linestyle="", marker=".", markersize=3, elinewidth = .5, label= "c", color="royalblue")
+    ax[1].errorbar(pt_val, b, xerr = 0, yerr = 0, linestyle="", marker=".", markersize=3, elinewidth = .5, label= "b", color="royalblue")
     ax[1].set_xlabel("Pt")
-    ax[1].set_ylabel("c")
+    ax[1].set_ylabel("b")
     ax[1].grid(color='lightgray', linestyle='--', linewidth=.25)
     ax[1].legend()
     for item in ([ax[1].title, ax[1].xaxis.label, ax[1].yaxis.label] + ax[1].get_xticklabels() + ax[1].get_yticklabels()):
         item.set_fontsize(8)  
 
+    ax[2].errorbar(pt_val, c, xerr = 0, yerr = 0, linestyle="", marker=".", markersize=3, elinewidth = .5, label= "c", color="royalblue")
+    ax[2].set_xlabel("Pt")
+    ax[2].set_ylabel("c")
+    ax[2].grid(color='lightgray', linestyle='--', linewidth=.25)
+    ax[2].legend()
+    for item in ([ax[2].title, ax[2].xaxis.label, ax[2].yaxis.label] + ax[2].get_xticklabels() + ax[2].get_yticklabels()):
+        item.set_fontsize(8)
+
+    ax[3].errorbar(pt_val, d, xerr = 0, yerr = 0, linestyle="", marker=".", markersize=3, elinewidth = .5, label= "d", color="royalblue")
+    ax[3].set_xlabel("Pt")
+    ax[3].set_ylabel("d")
+    ax[3].grid(color='lightgray', linestyle='--', linewidth=.25)
+    ax[3].legend()
+    for item in ([ax[3].title, ax[3].xaxis.label, ax[3].yaxis.label] + ax[3].get_xticklabels() + ax[3].get_yticklabels()):
+        item.set_fontsize(8)
+
+    ax[4].errorbar(pt_val, scaleFactor, xerr = 0, yerr = 0, linestyle="", marker=".", markersize=3, elinewidth = .5, label= "Pt_90/Pt_Cut", color="royalblue")
+    ax[4].set_xlabel("Pt")
+    ax[4].set_ylabel("A")
+    ax[4].grid(color='lightgray', linestyle='--', linewidth=.25)
+    ax[4].legend()
+    for item in ([ax[4].title, ax[4].xaxis.label, ax[4].yaxis.label] + ax[4].get_xticklabels() + ax[4].get_yticklabels()):
+        item.set_fontsize(8)
     return fig2
 
+def makeScaleFactorFitPlot(pt_val, pt_90s):
+    scaleFactor = np.divide(pt_90s, pt_val)
+    popt, pcov = optimize.curve_fit(Andrew_Helper.scaleFactorFunc_v, xdata=pt_val, ydata=scaleFactor, p0=(1.3, .015), method="lm")
+    scaleFactorFit = []
+    for pt in pt_val:
+        scaleFactorFit.append(Andrew_Helper.scaleFactorFunc(pt, popt[0], popt[1]))
+    fig2, ax = plt.subplots(1)
+    fig2.suptitle("Scale Factor Fit")
+    ax.errorbar(pt_val, scaleFactor, xerr = 0, yerr = 0, linestyle="", marker=".", markersize=3, elinewidth = .5, label= "Pt_90/Pt_Cut", color="royalblue")
+    ax.plot(pt_val, scaleFactorFit, label=r"$\frac{sf_a}{1-sf_b p_T}$", color="black")
+    ax.set_xlabel("Pt")
+    ax.set_ylabel("Scale Factor")
+    ax.grid(color='lightgray', linestyle='--', linewidth=.25)
+    props = dict(boxstyle='square', facecolor='white', alpha=1.0)
+    ax.text(0.95, 0.05, "  $sf_a = " + str(round(popt[0], 3)) + "$" + " \n$sf_b = " + str(round(popt[1], 3)) + "$", transform=ax.transAxes, fontsize=10, verticalalignment='bottom', horizontalalignment='right', bbox=props)
+    ax.legend()
+    for item in ([ax.title, ax.xaxis.label, ax.yaxis.label] + ax.get_xticklabels() + ax.get_yticklabels()):
+        item.set_fontsize(8)
+    print(popt)
+    return fig2
 
-
-
-
-
-
-
+def makeResolutionPlot(pt_val, b, c, d):
+    b_avg = np.average(b)
+    c_avg = np.average(c)
+    d_avg = np.average(d)
+    res = b_avg * pt_val ** c_avg + d_avg
+    fig2, ax = plt.subplots(1)
+    fig2.suptitle("Resolution")
+    ax.plot(pt_val, res, label= "$bp_T^c+d$", color="royalblue")
+    ax.set_xlabel("Pt")
+    ax.set_ylabel("Sigma (b*Pt^c+d)")
+    ax.grid(color='lightgray', linestyle='--', linewidth=.25)
+    props = dict(boxstyle='square', facecolor='white', alpha=1.0)
+    ax.text(0.95, 0.05, r"$\bar{b}$ = " + str(round(b_avg, 3)) + " \n$c = " + str(round(c_avg, 3)) + "$" + " \n$d = " + str(round(d_avg, 3)) + "$", transform=ax.transAxes, fontsize=10, verticalalignment='bottom', horizontalalignment='right', bbox=props)
+    ax.legend()
+    for item in ([ax.title, ax.xaxis.label, ax.yaxis.label] + ax.get_xticklabels() + ax.get_yticklabels()):
+        item.set_fontsize(8)
+    return fig2
 
