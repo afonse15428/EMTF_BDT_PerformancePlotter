@@ -2,6 +2,7 @@ import math
 import numpy
 import scipy
 from scipy import optimize
+from scipy.integrate import quad
 
 def effFunc(x, a, b):
     E = (0.5) * (1 + math.erf((1 - a/x)/(2**0.5 * b)))
@@ -14,7 +15,6 @@ def effFuncVariableRes(x, a, b, c, d):
     return E
 
 def effFuncVariableResMinus90(x, *args):
-    # print(args)
     a = args[0] 
     b = args[1]
     c = args[2]
@@ -32,17 +32,16 @@ def scaleFactorFunc(x, sf_a, sf_b):
 
     return A
 
+def effZBConv(x, a, b, c, d):
+    return 946308 * (x-.76018)**(-3.66)/(2446103) * effFuncVariableRes(x, a, b, c, d)
+
+def rateFunc(pt_cut, a, b, c, d):
+    freq_LHC = (2760*11.246)
+    N_mu, err = quad(effZBConv, 1, 1000, args=(a, b, c, d))
+    return N_mu*freq_LHC
+
 effFunc_v = numpy.vectorize(effFunc)
 effFuncVariableRes_v = numpy.vectorize(effFuncVariableRes)
 effFuncVariableResMinus90_v = numpy.vectorize(effFuncVariableResMinus90)
 scaleFactorFunc_v = numpy.vectorize(scaleFactorFunc)
 
-# print(findPt_90(27.6, .013, .604, .174))
-
-# after the fit, call function of  pt at 90%
-# pt_90/pt_cut = scalar factor
-# plot scalar factor vs pt
-
-# run the code for pt cut from 5 to 50
-
-# get average of c, b, d using numpy.average(...), then plot the averages with the function b*pt^c+d against pt_cuts

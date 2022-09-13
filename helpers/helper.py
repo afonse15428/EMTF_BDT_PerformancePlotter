@@ -4,7 +4,7 @@ def scaleBDTFunction(unbinned_BDT_pT, pt_scaling_A, pt_scaling_B):
     pt_min = 20
     unbinned_BDT_pT_scaled = np.where(unbinned_BDT_pT > pt_min, (pt_scaling_A * unbinned_BDT_pT)/(1 - (pt_scaling_B * pt_min)), (pt_scaling_A * unbinned_BDT_pT)/(1 - (pt_scaling_B * unbinned_BDT_pT)))
 
-    return unbinned_BDT_pt_scaled
+    return unbinned_BDT_pT_scaled
 
 def scaleBTDInverseFunction(unbinned_BDT_pT, pt_scaling_A, pt_scaling_B):
     pt_min = 20
@@ -20,7 +20,7 @@ def scaleBDTPtRun2(unbinned_BDT_pT):
 #    return scaleBDTFunction(unbinned_BDT_pT, 1.15, .009)
 
 def scaleBDTPtRun3(unbinned_BDT_pT):
-    return scaleBDTFunction(unbinned_BDT_pT, 1.3, 0.004)
+    return scaleBDTFunction(unbinned_BDT_pT, 1.246, 0.017)
 
 def applyMaskToEVTData(unbinned_EVT_data, keys_to_mask, masked_array, title, verbose = False):
     if(verbose and title):

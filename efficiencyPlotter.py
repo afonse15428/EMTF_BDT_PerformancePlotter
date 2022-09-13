@@ -77,7 +77,7 @@ if __name__ == "__main__":
     unbinned_EVT_data = {}
     unbinned_EVT_data['GEN_pt'] = branch_GEN_pt.arrays()['GEN_pt']
     unbinned_EVT_data['EMTF_pt'] = helper.unscaleBDTPtRun2(branch_EMTF_pt.arrays()['EMTF_pt'])
-    unbinned_EVT_data['BDT_pt'] = 2**branch_BDTG_AWB_Sq.arrays()['BDTG_AWB_Sq']
+    unbinned_EVT_data['BDT_pt'] = helper.scaleBDTPtRun3(2**branch_BDTG_AWB_Sq.arrays()['BDTG_AWB_Sq'])
     unbinned_EVT_data['GEN_eta'] = branch_GEN_eta.arrays()['GEN_eta']
     unbinned_EVT_data['GEN_phi'] = branch_GEN_phi.arrays()['GEN_phi']
     unbinned_EVT_data['TRK_hit_ids'] = branch_TRK_hit_ids.arrays()['TRK_hit_ids']
@@ -191,13 +191,16 @@ if __name__ == "__main__":
     fitParam_fig = efficiencyPlotter.makeFitParametersVsPtPlot(pt_cuts, pt_50, pt_90s, b, c, d)
     scaleFactorFit_fig = efficiencyPlotter.makeScaleFactorFitPlot(pt_cuts, pt_90s)
     res_fig = efficiencyPlotter.makeResolutionPlot(pt_cuts, b, c, d)
+    rate_fig = efficiencyPlotter.makeRatePlot(pt_cuts, pt_50, b, c, d)
 
     fitParam_fig.set_size_inches(6, 6)
     scaleFactorFit_fig.set_size_inches(6, 6)
     res_fig.set_size_inches(6, 6)
+    rate_fig.set_size_inches(6, 6)
     pp.savefig(fitParam_fig)
     pp.savefig(scaleFactorFit_fig)
     pp.savefig(res_fig)
+    pp.savefig(rate_fig)
 
     if(options.verbose):
         print("\nClosing PDF\n")
@@ -547,10 +550,10 @@ def makeEfficiencyVsPtStackedPlot(num_unbinned, den_unbinned, num2_unbinned, den
     ax[0].errorbar([den_bins[i]+(den_bins[i+1]-den_bins[i])/2 for i in range(0, len(den_bins)-1)],
                     efficiency_binned, yerr=efficiency_binned_err, xerr=[(bins[i+1] - bins[i])/2 for i in range(0, len(bins)-1)],
                     linestyle="", marker=".", markersize=3, elinewidth = .5, label=label1, color="royalblue")
-    ax[0].plot(pt_arr,
-                    eff_func_fit, #yerr=0, xerr=[(bins[i+1] - bins[i])/2 for i in range(0, len(bins)-1)],
-                    #linestyle="", marker="v", markersize=3, elinewidth = .5,
-                     label=label1+" fit", color="black")
+    #ax[0].plot(pt_arr,
+    #                eff_func_fit, #yerr=0, xerr=[(bins[i+1] - bins[i])/2 for i in range(0, len(bins)-1)],
+    #                #linestyle="", marker="v", markersize=3, elinewidth = .5,
+    #                 label=label1+" fit", color="black")
     # ax[0].errorbar([den2_bins[i]+(den2_bins[i+1]-den2_bins[i])/2 for i in range(0, len(den2_bins)-1)],
     #                efficiency2_binned, yerr=efficiency2_binned_err, xerr=[(bins[i+1] - bins[i])/2 for i in range(0, len(bins)-1)],
     #                linestyle="", marker=".", markersize=3, elinewidth = .5, label=label2, color="lightcoral")
@@ -577,9 +580,9 @@ def makeEfficiencyVsPtStackedPlot(num_unbinned, den_unbinned, num2_unbinned, den
     ax[1].errorbar([den_bins[i]+(den_bins[i+1]-den_bins[i])/2 for i in range(0, len(den_bins)-1)],
                     efficiency_binned, yerr=efficiency_binned_err, xerr=[(bins[i+1] - bins[i])/2 for i in range(0, len(bins)-1)],
                     linestyle="", marker=".", markersize=3, elinewidth = .5, label=label1, color="royalblue")
-    ax[1].plot(pt_arr,
-                    eff_func_fit,
-                    label=label1+" fit", color="black")
+    #ax[1].plot(pt_arr,
+    #                eff_func_fit,
+    #                label=label1+" fit", color="black")
     # ax[1].errorbar([den2_bins[i]+(den2_bins[i+1]-den2_bins[i])/2 for i in range(0, len(den2_bins)-1)],
     #                efficiency2_binned, yerr=efficiency2_binned_err, xerr=[(bins[i+1] - bins[i])/2 for i in range(0, len(bins)-1)],
     #                linestyle="", marker=".", markersize=3, elinewidth = .5, label=label2, color="lightcoral")
@@ -691,7 +694,7 @@ def makeFitParametersVsPtPlot(pt_val, pt_50, pt_90s, b, c, d):
         item.set_fontsize(8)
         
     ax[1].errorbar(pt_val, b, xerr = 0, yerr = 0, linestyle="", marker=".", markersize=3, elinewidth = .5, label= "b", color="royalblue")
-    ax[1].set_xlabel("Pt")
+    ax[1].set_xlabel("$p_T$(GeV)")
     ax[1].set_ylabel("b")
     ax[1].grid(color='lightgray', linestyle='--', linewidth=.25)
     ax[1].legend()
@@ -699,7 +702,7 @@ def makeFitParametersVsPtPlot(pt_val, pt_50, pt_90s, b, c, d):
         item.set_fontsize(8)  
 
     ax[2].errorbar(pt_val, c, xerr = 0, yerr = 0, linestyle="", marker=".", markersize=3, elinewidth = .5, label= "c", color="royalblue")
-    ax[2].set_xlabel("Pt")
+    ax[2].set_xlabel("$p_T$(GeV)")
     ax[2].set_ylabel("c")
     ax[2].grid(color='lightgray', linestyle='--', linewidth=.25)
     ax[2].legend()
@@ -707,7 +710,7 @@ def makeFitParametersVsPtPlot(pt_val, pt_50, pt_90s, b, c, d):
         item.set_fontsize(8)
 
     ax[3].errorbar(pt_val, d, xerr = 0, yerr = 0, linestyle="", marker=".", markersize=3, elinewidth = .5, label= "d", color="royalblue")
-    ax[3].set_xlabel("Pt")
+    ax[3].set_xlabel("$p_T$(GeV)")
     ax[3].set_ylabel("d")
     ax[3].grid(color='lightgray', linestyle='--', linewidth=.25)
     ax[3].legend()
@@ -715,7 +718,7 @@ def makeFitParametersVsPtPlot(pt_val, pt_50, pt_90s, b, c, d):
         item.set_fontsize(8)
 
     ax[4].errorbar(pt_val, scaleFactor, xerr = 0, yerr = 0, linestyle="", marker=".", markersize=3, elinewidth = .5, label= "Pt_90/Pt_Cut", color="royalblue")
-    ax[4].set_xlabel("Pt")
+    ax[4].set_xlabel("$p_T$(GeV)")
     ax[4].set_ylabel("A")
     ax[4].grid(color='lightgray', linestyle='--', linewidth=.25)
     ax[4].legend()
@@ -733,7 +736,7 @@ def makeScaleFactorFitPlot(pt_val, pt_90s):
     fig2.suptitle("Scale Factor Fit")
     ax.errorbar(pt_val, scaleFactor, xerr = 0, yerr = 0, linestyle="", marker=".", markersize=3, elinewidth = .5, label= "Pt_90/Pt_Cut", color="royalblue")
     ax.plot(pt_val, scaleFactorFit, label=r"$\frac{sf_a}{1-sf_b p_T}$", color="black")
-    ax.set_xlabel("Pt")
+    ax.set_xlabel("$p_T$(GeV)")
     ax.set_ylabel("Scale Factor")
     ax.grid(color='lightgray', linestyle='--', linewidth=.25)
     props = dict(boxstyle='square', facecolor='white', alpha=1.0)
@@ -752,13 +755,43 @@ def makeResolutionPlot(pt_val, b, c, d):
     fig2, ax = plt.subplots(1)
     fig2.suptitle("Resolution")
     ax.plot(pt_val, res, label= "$bp_T^c+d$", color="royalblue")
-    ax.set_xlabel("Pt")
-    ax.set_ylabel("Sigma (b*Pt^c+d)")
+    ax.set_xlabel("$p_T$(GeV)")
+    ax.set_ylabel("Sigma (b*p_T^c+d)")
     ax.grid(color='lightgray', linestyle='--', linewidth=.25)
     props = dict(boxstyle='square', facecolor='white', alpha=1.0)
-    ax.text(0.95, 0.05, r"$\bar{b}$ = " + str(round(b_avg, 3)) + " \n$c = " + str(round(c_avg, 3)) + "$" + " \n$d = " + str(round(d_avg, 3)) + "$", transform=ax.transAxes, fontsize=10, verticalalignment='bottom', horizontalalignment='right', bbox=props)
+    ax.text(0.95, 0.05, r"$\bar{b}$ = " + str(round(b_avg, 3)) + "\n" + r"$\bar{c}$ = " + str(round(c_avg, 3)) + "\n" +  r"$\bar{d}$ = " + str(round(d_avg, 3)), transform=ax.transAxes, fontsize=10, verticalalignment='bottom', horizontalalignment='right', bbox=props)
     ax.legend()
     for item in ([ax.title, ax.xaxis.label, ax.yaxis.label] + ax.get_xticklabels() + ax.get_yticklabels()):
         item.set_fontsize(8)
     return fig2
+
+def makeRatePlot(pt_val, pt_50, b, c, d):
+    rate = []
+    for i in range(0, len(pt_val)):
+        rate.append(Andrew_Helper.rateFunc(pt_val[i], pt_50[i], b[i], c[i], d[i]))
+    fig2, ax = plt.subplots(1)
+    fig2.suptitle("Rate")
+    ax.errorbar(pt_val, rate, xerr = 0, yerr = 0, linestyle="", marker=".", markersize=3, elinewidth = .5, label= "Rate", color="royalblue")
+    ax.set_xlabel("$p_T$(GeV)")
+    ax.set_ylabel("Rate")
+    ax.grid(color='lightgray', linestyle='--', linewidth=.25)
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    ax.set_xlim([1,300])
+    ax.set_ylim([0.002, 3000])
+    ax.axvline(x=22, color='r', linewidth=.5, linestyle='--')
+    props = dict(boxstyle='square', facecolor='white', alpha=1.0)
+    #ax.text(0.95, 0.05, "  $R(22Gev) = " + str(round(rate[16], 3)) + "$", transform=ax.transAxes, fontsize=10, verticalalignment='bottom', horizontalalignment='right', bbox=props)
+    ax.legend()
+    for item in ([ax.title, ax.xaxis.label, ax.yaxis.label] + ax.get_xticklabels() + ax.get_yticklabels()):
+        item.set_fontsize(8)
+    print(rate)
+    print(pt_val)
+    return fig2
+
+
+
+
+
+
 
